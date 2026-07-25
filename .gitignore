@@ -1,8 +1,12 @@
 # 默认忽略所有，再用 ! 显式放行
 *
 
-# 白名单：仅跟踪 CLAUDE.md 和 rules/ 分片规则
+# 白名单：CLAUDE.md、rules/ 分片规则、docs/ 说明文档
+# 明确不跟踪：settings.json（含机器本地路径与插件开关）、memory/（机器本地事实）、
+#            projects/ / sessions/ / history.jsonl / backups/ / plugins/ / 各类 cache
 !.gitignore
 !CLAUDE.md
 !rules/
 !rules/**
+!docs/
+!docs/**
