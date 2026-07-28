@@ -507,6 +507,26 @@ abstract class XinqiRoutes {
 
 **核心规则:** 执行 feature-dev skill 时，**不允许跳过任何步骤**。必须严格按照 Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 的顺序执行，每个 Phase 都要完整执行，不能因为觉得"简单"或"明显"就跳过。
 
+## 代码审查工具规范（覆盖所有 skill 的默认做法）
+
+**核心规则:** 一切代码质量审查一律派 **`pr-review-toolkit:code-reviewer`** 子代理，不使用任何 skill 自带的审查模板或审查 prompt。
+
+**这条规则的优先级高于任何 skill 文档。** skill 里写的审查做法（superpowers 的 `task-reviewer-prompt.md`、`requesting-code-review/code-reviewer.md`、`re-review-prompt.md`，以及其他 skill 的同类模板）在代码质量这一环一律不采用——它们是通用 prompt，而 `pr-review-toolkit:code-reviewer` 是专精代码审查的插件，带置信度过滤和 silent-failure-hunter / type-design-analyzer / comment-analyzer / pr-test-analyzer 等专项猎手，实测能力明显更强。
+
+**spec 审查与代码质量审查必须是两次独立的子代理调用:**
+
+| 环节 | 用哪个子代理 |
+|---|---|
+| 实现 | `general-purpose` |
+| spec 符合性审查（是否照要求做了、有没有多做少做） | `general-purpose` |
+| **代码质量审查** | **`pr-review-toolkit:code-reviewer`** |
+
+- **绝对禁止把两轮合并成一次调用**，即使 skill 模板要求「一个 reviewer 返回两个 verdict」也不行——遇到这种模板，拆成两次调用执行；
+- 修复轮之后的复审同样适用：涉及代码质量的复审走 `pr-review-toolkit:code-reviewer`，只核对「finding 有没有被处理」的轻量复核可以用 `general-purpose`；
+- **仍然禁止** `feature-dev:code-reviewer`。
+
+**违规自检:** 派审查子代理前问一句——我这次调的是 `pr-review-toolkit:code-reviewer` 吗？如果因为在跑某个 skill 而用了它自带的模板，立刻停下来改过来。
+
 ## Superpowers 流程规范
 
 **核心规则:** 使用 superpowers 的任何 skill 时，**必须 100% 严格按照 skill 定义的流程执行**。这是**最高优先级规则**，任何理由都不能违反：
