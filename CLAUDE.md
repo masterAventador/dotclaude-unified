@@ -691,6 +691,12 @@ abstract class XinqiRoutes {
 - 确实需要下载前，先向用户说明本机现有浏览器为什么不能满足、准备下载什么和大致占用；不得仅因为 Playwright 报缺少其默认缓存版本，就直接下载
 - CI / 容器环境可按可重复构建需要安装锁定版本的浏览器；这不改变本机开发环境优先复用系统浏览器的要求
 
+**本机 Playwright 依赖复用（强制）:**
+- 本机默认只维护一份全局安装的最新稳定版 Playwright 测试框架；开始前先检查全局版本，已有可用版本时直接复用，不得在每个项目里重复安装 `@playwright/test`、`playwright` 或 `playwright-core`
+- 项目需要 Playwright 时，通过当前包管理器支持的全局链接机制把全局包链接进项目运行环境；链接只负责模块解析，不得把 Playwright 重新写入项目依赖或下载另一份实体包
+- Playwright 配置默认使用 `channel: "chrome"` 调用本机用户日常使用的 Google Chrome；不要把某台机器的 Chrome 绝对路径写进跨机器共用的项目配置
+- 只有 CI / 容器需要可重复安装、项目有经验证的版本兼容要求、或全局版本确实无法运行时，才允许保留项目级 Playwright；采用例外前必须向用户说明原因、作用范围和额外占用
+
 **为什么临时操作用 agent-browser:** 它是 Rust CLI + 常驻 daemon，基于 accessibility tree 返回带 ref 编号（`@e1`/`@e2`）的可交互元素，确定性强、不用猜 CSS 选择器，对 AI 友好且执行快。
 
 **agent-browser 核心工作流:**
