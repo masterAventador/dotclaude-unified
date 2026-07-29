@@ -685,6 +685,12 @@ abstract class XinqiRoutes {
 - 项目 E2E 默认 Playwright，测试代码必须纳入仓库、可重复执行并可接入 CI
 - 反过来也不要用 Playwright 去干"AI 临时点几下看看"的活——写脚本猜选择器比 agent-browser 慢得多
 
+**本机浏览器复用（强制）:**
+- 本机编写或运行 Playwright、Puppeteer、Cypress 等浏览器自动化时，凡是工具准备下载 Chrome / Chromium 或其他浏览器运行时，**必须先检查并优先复用本机已经安装的兼容浏览器**；Playwright 优先通过 `channel: "chrome"` 等跨平台配置调用日常使用的 Google Chrome，不要为每个项目额外下载一份 Chromium
+- 安装测试框架依赖时，不得顺手执行 `playwright install`、`playwright install chromium` 或同类浏览器下载命令；只有本机没有兼容浏览器、测试明确覆盖 Firefox / WebKit 等其他引擎、或项目有可验证的固定浏览器构建要求时才允许下载
+- 确实需要下载前，先向用户说明本机现有浏览器为什么不能满足、准备下载什么和大致占用；不得仅因为 Playwright 报缺少其默认缓存版本，就直接下载
+- CI / 容器环境可按可重复构建需要安装锁定版本的浏览器；这不改变本机开发环境优先复用系统浏览器的要求
+
 **为什么临时操作用 agent-browser:** 它是 Rust CLI + 常驻 daemon，基于 accessibility tree 返回带 ref 编号（`@e1`/`@e2`）的可交互元素，确定性强、不用猜 CSS 选择器，对 AI 友好且执行快。
 
 **agent-browser 核心工作流:**
