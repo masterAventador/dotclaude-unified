@@ -153,24 +153,13 @@
 2. 这个功能依赖的每一样东西，在用户那个包里真的存在吗？我打开包看过吗？
 3. 代码里有没有 feature / 环境变量决定"去哪找东西"？有的话生产那条分支谁验过？
 
-## 自动化测试规范
+## 测试栈选型
 
-**核心规则:** 所有项目的前后端代码都必须编写自动化测试。每个 Task 提交前必须运行**相关包**的测试并确认通过；是否跑全量按下文「Superpowers Task 测试粒度规范」分级判定（不是每个 task 都需要全量）。
+所有项目的前后端代码都必须有自动化测试。**跑哪些测试、什么时候跑全量**见「Superpowers Task 测试粒度规范」；**测试先行的强制流程**见「TDD 铁律」。各技术栈的具体测试栈：
 
-### 后端测试（Java 项目）
-
-Service / Controller / Repository 都必须有自动化测试。**分层测试工具选型、Maven surefire/failsafe 分工、mock 库、测试数据库、Object Mother 等细则见 `~/.claude/rules/java-backend.md` 第 7 节**，不在本文件重复。
-
-### 前端测试（Vue/React 项目）
-
-- **单元测试**：使用 Vitest，对工具函数、Store、API 函数、组件逻辑编写单元测试
-- **组件测试**：使用 Vitest + @vue/test-utils（Vue）或 Testing Library（React），测试组件交互逻辑
-- **E2E / 浏览器自动化测试**：默认使用 Playwright，测试代码必须纳入仓库、可重复执行并可接入 CI，覆盖核心业务流程；`agent-browser` 仅作为 AI 临时操作浏览器的工具，不作为 E2E 测试框架（见「浏览器工具分工规范」）
-
-### 测试要求
-
-- 写实现计划时，每个 Task 必须按 TDD 顺序组织步骤（测试先行），不允许先写实现再补测试
-- 整个 plan 完成、merge 前必须跑一次完整的全量测试做 final gate
+- **前端（Vue / React）**：单元测试与组件测试用 Vitest（配 `@vue/test-utils` 或 Testing Library），覆盖工具函数、Store、API 函数、组件交互逻辑；E2E 默认 Playwright，测试代码必须纳入仓库、可重复执行并可接入 CI，`agent-browser` 不作为 E2E 框架（见「浏览器工具分工规范」）
+- **Java 后端**：见 `~/.claude/rules/java-backend.md` 第 7 节
+- **Flutter**：见 `~/.claude/rules/flutter.md` 第 23 节
 
 ## Bug 修复最小改动规范
 
@@ -327,27 +316,11 @@ Service / Controller / Repository 都必须有自动化测试。**分层测试�
 
 **触发时机:** 每次修改完被纳管的配置后，立即 `git add <白名单文件>` → `git commit` → `git push`，不要等用户提醒。
 
-## 后台任务等待规范（被动等通知优先，别轮询）
+## 子代理派遣规范
 
-**核心规则:** harness 能跟踪的后台任务（`Bash(run_in_background=true)`、后台 Agent、Workflow）跑完会自动用 task-notification 把我唤起，**纯被动等通知即可**——不 poll 任务状态，不反复 Read 日志，也不设 `ScheduleWakeup` 兜底唤醒去等它。中间这段时间该回合就结束。
+**模型选择:** 子代理用什么模型不写死，按任务难度和所在 skill 的约定挑；需要高质量审查 / 复杂实现时**不要为省 token 降级**。
 
-**只有这两种例外才主动盯:**
-1. **harness 跟踪不到的外部状态**——远程 CI、别的系统上的部署、远端队列等，用 Monitor 或定时唤醒去查（间隔按那个状态多快变化来定，不要无脑长间隔）
-2. **要在任务退出前抓中途日志标记**——如某个子用例一 FAIL 就立刻反应、不等整套跑完，用 Monitor 盯 grep pattern 拿即时推送
-
-## 子代理派遣必须后台模式（强制）
-
-**核心规则（强制）:** 用 Agent 工具派遣子代理时**禁止传 `run_in_background: false`**。后台是当前工具的默认值，保持默认即可；显式转同步会把对话彻底卡住——用户在子代理跑完前无法跟我说任何话，体验极差。
-
-**具体:**
-- 启动后该回合就结束，子代理跑完会自动用 task-notification 唤起我（见「后台任务等待规范」，被动等通知即可，别轮询）。
-- 派多个独立子代理时，在同一条消息里一次性派出，让它们并行。
-- 子代理用什么模型不写死，按任务难度和所在 skill 的约定挑；需要高质量审查/复杂实现时不要为省 token 降级。
-- **绝对禁止:** 为了"任务很短、马上就好"就转同步阻塞——宁可后台等通知，也不要阻塞用户。
-
-## 子代理 prompt 注入规则
-
-**核心规则:** 派遣子代理时，prompt 中必须显式注入**子代理无法靠自行读取获得**的信息：
+**prompt 注入（核心规则）:** 派遣子代理时，prompt 中必须显式注入**子代理无法靠自行读取获得**的信息：
 
 1. **主对话中已达成的决策和上下文**（子代理看不到主对话历史）
    - 架构选择（如"本任务已选 A1 方案：api+core 双模块"）
@@ -363,23 +336,9 @@ Service / Controller / Repository 都必须有自动化测试。**分层测试�
 
 **适用范围:** 所有派遣子代理的场景。下面「Superpowers 流程规范」里的 TDD 专项条款是本规则的一个具体实例。
 
-## Monitor 工具使用规范
+## Monitor 收尾规范
 
-> 适用前提：先按上面「后台任务等待规范」判断**确实需要主动盯**（外部状态 / 抢中途标记）才用 Monitor；会自动通知的被跟踪任务别上 Monitor。
-
-**核心规则:** 用 Monitor 盯长时间任务（部署、编译等）时，**任务完成后必须主动调 `TaskStop` 杀掉 monitor**，不要让它超时自然退出。
-
-**具体:**
-- Monitor 超时自然退出会给用户推一条"Monitor timed out"通知，造成噪音
-- 用户明确知道任务已完成时（比如部署流程收到 "deploy done"），应立刻 `TaskStop(monitor_task_id)`
-- 监听脚本的 grep pattern 要**同时覆盖成功路径和失败路径**（如 `deploy done|BUILD FAIL|ERROR`），保证不管正常/异常结束都能及时推送
-- Monitor 的 `timeout_ms` 只是兜底，不应作为退出机制
-
-**典型流程:**
-1. Bash(run_in_background=true) 启动部署脚本
-2. Monitor 盯 log，推送中间进度 + 结束标记
-3. 收到 "deploy done" 或 "FAIL" 通知 → 立刻 TaskStop
-4. 继续下一步（下一轮部署 / 汇报结果）
+**核心规则:** 用 Monitor 盯长时间任务时，**一收到结束标记就主动调 `TaskStop` 杀掉 monitor**，不要让它超时自然退出——超时会给用户推一条 "Monitor timed out" 噪音通知。`timeout_ms` 只是兜底，不是退出机制。
 
 ## 代码审查工具规范（覆盖所有 skill 的默认做法）
 
@@ -471,15 +430,11 @@ Service / Controller / Repository 都必须有自动化测试。**分层测试�
 - 例：`只跑 business_packages/ekw_topic 包的测试 + flutter analyze 即可，不需要跑全量`
 - 或：`本 task 涉及 foundation 层下沉，必须跑全量 yes | fvm flutter test`
 
-## Superpowers 可视化伴侣使用规范
+## Superpowers 可视化伴侣内容留存规范
 
-**核心规则:** 在 superpowers 流程（尤其是 brainstorming）中，**如果用户同意了使用可视化伴侣**，当需要展示数据结构、架构图、流程图、模块关系图、数据模型、API 设计等结构化/图形化内容时，**必须使用可视化伴侣（Visual Companion）在浏览器中呈现**，而不是仅用文字输出。如果用户拒绝了可视化伴侣，则正常用文字输出即可。
+> 何时提供伴侣、哪些问题走浏览器 / 哪些走终端，brainstorming skill 自己有规定，照它走即可。本节只补 skill 没有的**留存**要求。
 
-**适用场景:** 数据模型/表结构、架构图/模块关系图、流程图/时序图、API 设计概览、方案对比、任何用图形比文字更直观的内容
-
-**不适用场景:** 纯文字讨论（需求澄清问题、概念选择等）
-
-**内容留存规范:**
+**核心规则:**
 - 用户选择完方案后，最终确认的设计内容（架构图、流程图、数据模型、页面结构等）**必须保存下来**，方便以后直接打开网页查看整体项目设计
 - **只保留最终选择的方案**，不保留选择过程中的备选项（如 A/B/C 方案选择页面）
 - 留存文件统一放在项目的 `.superpowers/brainstorm/` 目录下，使用语义化文件名（如 `architecture.html`、`data-model.html`、`page-structure.html`）
@@ -567,7 +522,7 @@ Service / Controller / Repository 都必须有自动化测试。**分层测试�
 2. `agent-browser snapshot -i` — 拿到带 ref（`@e1`、`@e2`）的可交互元素
 3. `agent-browser click @e1` / `agent-browser fill @e2 "文本"` — 用 ref 交互
 4. 页面变化后重新 `snapshot -i`
-5. 完整命令查 `agent-browser --help`，详细工作流见全局 skill `agent-browser`
+5. 完整命令查 `agent-browser --help`；**完整工作流跑 `agent-browser skills get core`**（全局 skill `agent-browser` 的 SKILL.md 只是 discovery stub，正文在 CLI 里，永远和已装版本一致）
 
 **有头 / 无头:** agent-browser **默认无头**，保持默认即可（见「全技术栈测试静默运行规范」）。只有用户本次明确要求看界面时才加 `--headed`。
 
