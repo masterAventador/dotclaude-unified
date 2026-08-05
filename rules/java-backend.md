@@ -522,3 +522,63 @@ class UserRegisterServiceTest {
     }
 }
 ```
+
+---
+
+## 10. static 优先原则的 Java 具体写法（强制）
+
+判定规则见全局 CLAUDE.md「static 优先原则」。本节只讲 Java / Spring 的落地写法与边界。
+
+### 10.1 Spring Bean 不在本规则约束范围内
+
+Spring 管理的 Bean（`@Service` / `@Repository` / `@Controller` / `@Component` / `@Configuration`）是**有状态的实例**——它们持有注入的依赖（构造器注入 / `@Autowired`）作为**实例字段**。即使某个 Service 方法看起来"不用 this"，它实际上通过注入字段访问其他 Bean，本质上有实例状态。
+
+✅ Spring Bean 用实例方法 + 依赖注入是 Java 后端核心模式：
+
+```java
+@Service
+@RequiredArgsConstructor
+public class UserRegisterService {                      // ✅ Spring 管理的实例
+    private final UserRepository repo;                  // 注入的依赖（实例字段）
+    private final TokenGeneratorService tokenGenerator; // 同上
+
+    public RegisterResult register(...) {               // ✅ 实例方法（用了 this.repo）
+        ...
+    }
+}
+```
+
+❌ **不要**把 Spring Bean 的方法改成 static + 字段做成 static 全局——会破坏依赖注入、测试隔离和配置灵活性。
+
+### 10.2 utility 类 / 常量类（非 Spring 管理）仍受约束
+
+不被注入的纯工具类必须 `final class` + private constructor + 全 static。private constructor **是必须的**（否则能被反射或子类化），`final` 防继承：
+
+```java
+// ✅ Java utility 类
+public final class PhoneUtil {
+    private PhoneUtil() {}    // 必须
+
+    public static final String CN_MOBILE_REGEXP = "^1\\d{10}$";
+
+    public static boolean isValid(String phone) { ... }
+}
+```
+
+```java
+// ❌ 反例：把无状态 utility 包成 Spring Bean 没有意义
+@Component
+public class PhoneValidator {
+    public boolean isValid(String phone) {
+        return phone.matches("^1\\d{10}$");   // 没用任何注入
+    }
+}
+// ↑ 应改成 final class + private constructor + static 方法
+```
+
+### 10.3 Java 自检清单
+
+1. 这个类是 Spring 管理的 Bean 吗？是 → 跳过 static 检查，实例方法合理
+2. 不是 Bean：每个非 static 方法都访问了 `this.xxx` 吗？否 → 改 static
+3. 不是 Bean：每个非 static 字段都"每个实例不一样"吗？否 → 改 static
+4. 改完没有任何实例成员了 → `public final class` + `private Xxx() {}`

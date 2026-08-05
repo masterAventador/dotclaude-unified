@@ -602,3 +602,54 @@ yes | fvm flutter run
 - **E2E / 集成测试**：`integration_test`（官方包）
 - **TDD 流程**：有业务逻辑的代码必须先写失败测试 → 写最小实现 → 测试通过
 - **测试聚合入口**：每个含测试的 package 必须有 `test/<pkg_name>_suite.dart` 聚合本包测试，供顶层 E2E 调用（业务包细则见 `flutter-business-layer.md` 第 10 节，bizkit 见 `flutter-foundation-layer.md` 第 7 节）
+
+---
+
+## 24. static 优先原则的 Dart 具体写法（强制）
+
+判定规则见全局 CLAUDE.md「static 优先原则」。本节只讲 Dart 的落地写法。
+
+**全 static 的类必须写成 `abstract class`，不要写私有构造:**
+
+`abstract class` 本身已经阻止 `new`，再写 `Xxx._()` 是冗余——**看到 `abstract class` 里还留着私有构造，说明写错了，删掉。**
+
+**典型反例（本项目真实出现过）:**
+
+```dart
+// ❌ loginByCode 不用 this，却被包装成单例 + 实例方法
+class XinqiAuthApi {
+  XinqiAuthApi._();
+  static final XinqiAuthApi instance = XinqiAuthApi._();
+  Future<BaseResp<LoginData>> loginByCode({...}) {     // 没用 this
+    return HttpClient.instance.send(...);
+  }
+}
+
+// ✅ 正解
+abstract class XinqiAuthApi {
+  static Future<BaseResp<LoginData>> loginByCode({...}) {
+    return HttpClient.send(...);
+  }
+}
+```
+
+```dart
+// ❌ 只有静态常量，却写成普通 class + 私有构造
+class XinqiRoutes {
+  XinqiRoutes._();
+  static const String chat = '/chat';
+}
+
+// ✅ 正解
+abstract class XinqiRoutes {
+  static const String chat = '/chat';
+}
+```
+
+**Dart 自检清单:**
+1. 每个非 static 方法都至少访问了一处 `this.xxx` 吗？否 → 改 static
+2. 每个非 static 字段都"每个实例不一样"吗？否 → 改 static
+3. 类里还有实例成员吗？没有 → 改 `abstract class`
+4. `abstract class` 里还留着私有构造吗？有 → 删掉，冗余
+
+**GetX 相关提醒:** `GetxController` 子类天然有实例状态（`Get.put` / `Get.find` 管理生命周期），是合理的实例类，不受本规则约束。但 Controller 里**不用 `this` 的纯计算 / 格式化方法**仍应改成 `static`，或直接抽到工具类。

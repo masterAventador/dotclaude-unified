@@ -159,9 +159,7 @@
 
 ### 后端测试（Java 项目）
 
-- **单元测试**：Service、Repository、核心业务逻辑类必须有单元测试，使用 JUnit + Mockito
-- **接口自动化测试**：每个 Controller 接口必须有集成测试，使用 `@SpringBootTest` + `MockMvc`
-- **测试文件位置**：与源码同包路径，放在 `src/test/java/` 下
+Service / Controller / Repository 都必须有自动化测试。**分层测试工具选型、Maven surefire/failsafe 分工、mock 库、测试数据库、Object Mother 等细则见 `~/.claude/rules/java-backend.md` 第 7 节**，不在本文件重复。
 
 ### 前端测试（Vue/React 项目）
 
@@ -242,7 +240,7 @@
 
 ## static 优先原则（强制）
 
-**适用范围:** 所有面向对象语言（Dart / Java / Kotlin / TypeScript / C# / Python class 等）。
+**适用范围:** 所有面向对象语言（Dart / Java / Kotlin / TypeScript / C# / Python class 等）。**各语言的具体写法、例外与正反例见 `~/.claude/rules/` 下的分片**：Dart 见 `flutter.md` 第 24 节，Java / Spring 见 `java-backend.md` 第 10 节。
 
 **核心规则（成员层面 — 跨语言通用）:** 写**每个**方法 / 字段前必须先问一个问题——
 
@@ -261,116 +259,14 @@
 - ❌ `instance.xxx()` 调用一个完全不依赖实例状态的方法 —— 直接 `Xxx.xxx()` 就行
 - ❌ 写完类不复查 —— 必须自检每个方法/字段是否真用了 this
 
-**类层面的归纳（语言相关）:** 按上面规则判定后，所有成员都是 `static` 的、整个类没有任何实例成员 —— 这种类**必须不可实例化**。各语言对应写法：
+**类层面的归纳（语言相关）:** 按上面规则判定后，所有成员都是 `static` 的、整个类没有任何实例成员 —— 这种类**必须不可实例化**。各语言写法：Dart 用 `abstract class`（**不需要**私有构造，冗余私有构造是错误信号）；Java / Kotlin 用 `final class` + private constructor；TypeScript 用 `abstract class` + private constructor 或 `namespace`；C# 用 `static class`。
 
-| 语言 | 不可实例化的写法 | 注意点 |
-|---|---|---|
-| **Dart** | `abstract class Xxx { static ... }` | **不需要**私有构造（abstract 已阻止 `new`）。冗余的私有构造是错误信号 |
-| **Java / Kotlin** | `public final class Xxx { private Xxx() {} static ... }` | private constructor **必须**（否则能被反射 / 子类化）；`final` 防继承 |
-| **TypeScript** | `abstract class Xxx { private constructor() {} static ... }` 或 `namespace` | 同 Java 思路 |
-| **C#** | `public static class Xxx { static ... }` | 语言层面有 `static class` 关键字 |
-
-**Java 重要例外 — Spring Bean 不在本规则约束范围内:**
-
-Spring 框架管理的 Bean（`@Service` / `@Repository` / `@Controller` / `@Component` / `@Configuration`）是**有状态的实例**——它们持有注入的依赖（`@Autowired` / 构造器注入）作为**实例字段**。即使某个 Service 方法看起来"不用 this"，它实际上通过注入的字段访问其他 Bean，本质上**有实例状态**。
-
-✅ **Spring Bean 用实例方法 + 依赖注入是 Java 后端核心模式**，不要尝试把它们改 static：
-
-```java
-@Service
-@RequiredArgsConstructor
-public class UserRegisterService {     // ✅ Spring 管理的实例
-    private final UserRepository repo;     // 注入的依赖（实例字段）
-    private final TokenGeneratorService tokenGenerator;  // 同上
-
-    public RegisterResult register(...) {  // ✅ 实例方法（用了 this.repo / this.tokenGenerator）
-        ...
-    }
-}
-```
-
-❌ Spring Bean 的方法**不要**改成 static + 把字段做成 static 全局——这破坏了依赖注入、测试隔离、配置灵活性。
-
-**utility 类 / 常量类（非 Spring 管理）仍受本规则约束:**
-
-✅ 不被注入的纯工具类，按本规则要求：
-
-```java
-// ✅ Java utility 类
-public final class PhoneUtil {
-    private PhoneUtil() {}    // private constructor 必须
-
-    public static final String CN_MOBILE_REGEXP = "^1\\d{10}$";
-
-    public static boolean isValid(String phone) { ... }
-}
-```
-
-```java
-// ❌ 反例：把无状态 utility 包成 Spring Bean 没意义
-@Component
-public class PhoneValidator {
-    public boolean isValid(String phone) {
-        return phone.matches("^1\\d{10}$");   // 没用任何注入
-    }
-}
-// ↑ 应该改 final class + private constructor + static 方法
-```
-
-**典型反例（Dart 项目里出现过的）:**
-
-```dart
-// ❌ XinqiAuthApi.loginByCode 不用 this，却被包装成单例 + 实例方法
-class XinqiAuthApi {
-  XinqiAuthApi._();
-  static final XinqiAuthApi instance = XinqiAuthApi._();
-  Future<BaseResp<LoginData>> loginByCode({...}) {     // 没用 this
-    return HttpClient.instance.send(...);
-  }
-}
-
-// ✅ 正解
-abstract class XinqiAuthApi {
-  static Future<BaseResp<LoginData>> loginByCode({...}) {
-    return HttpClient.send(...);
-  }
-}
-
-// ❌ XinqiRoutes 只有静态常量，写成普通 class + 私有构造
-class XinqiRoutes {
-  XinqiRoutes._();
-  static const String chat = '/chat';
-}
-
-// ✅ 正解
-abstract class XinqiRoutes {
-  static const String chat = '/chat';
-}
-```
+**已知例外 — Spring Bean 不受本规则约束:** Spring 管理的 Bean（`@Service` / `@Repository` / `@Controller` / `@Component` / `@Configuration`）持有注入的依赖作为**实例字段**，本质上有实例状态，用实例方法 + 依赖注入是 Java 后端核心模式，**不要试图改成 static**（改了会破坏依赖注入、测试隔离、配置灵活性）。不被注入的纯 utility / 常量类仍受本规则约束。细则与正反例见 `java-backend.md` 第 10 节。
 
 **违规自检（写完类后必须问自己）:**
-
-```
-1. 每个非 static 方法都至少访问了一处 this.xxx 吗？
-   - 否 → 立刻改 static
-   - Java 例外：Spring Bean 内的方法即使看起来不用 this，
-     如果它通过 @Autowired 字段调用其他 Bean，那是合理的实例方法，跳过此检查
-
-2. 每个非 static 字段都"每个实例不一样"吗？
-   - 否 → 立刻改 static
-   - Java 例外：Spring Bean 注入的依赖字段（@Autowired / final + RequiredArgsConstructor）属于实例状态
-
-3. 改完后类还有任何实例成员吗？
-   - 否：
-     - Dart → 改 abstract class（删私有构造）
-     - Java/Kotlin → final class + private constructor
-     - TS → abstract class + private constructor 或 namespace
-     - C# → static class
-   - 是 → 普通 class
-
-4. Dart 项目：abstract class 还留着私有构造吗？
-   - 是 → 删掉，冗余
-```
+1. 每个非 static 方法都至少访问了一处 `this.xxx` 吗？否 → 立刻改 static
+2. 每个非 static 字段都"每个实例不一样"吗？否 → 立刻改 static
+3. 改完后类还有任何实例成员吗？没有 → 按上面各语言写法改成不可实例化
 
 **为什么这条规则很重要:**
 - 单例 / 伪 Spring Bean 包装无状态方法是**典型的过度设计**——增加了 `instance.` 或 `@Autowired` 调用噪音、占用一份内存、没带来任何收益
