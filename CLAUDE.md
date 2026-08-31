@@ -305,11 +305,11 @@
 
 ## Claude 配置文件同步规范
 
-**核心规则:** `~/.claude/` 目录下被纳管的配置、规则发生变更时（`CLAUDE.md`、`rules/` 分片、`docs/`、`.gitignore`），**必须及时提交并推送到 GitHub `masterAventador/dotclaude-unified` 仓库（private）**。
+**核心规则:** `~/.claude/` 目录下被纳管的配置、规则发生变更时（`CLAUDE.md`、`rules/` 分片、`docs/`、`hooks/`、`.gitignore`），**必须及时提交并推送到 GitHub `masterAventador/dotclaude-unified` 仓库（private）**。
 
 **三台机器共用同一个仓库:** 家用 Mac、公司 Mac、Windows 全部指向 `dotclaude-unified`。改规则前先 `git pull`，避免和另一台机器的改动冲突。
 
-**白名单（只提交这些）:** `CLAUDE.md`、`rules/` 下所有分片规则、`docs/`、`.gitignore` 本身。其余全部由 `.gitignore` 排除：
+**白名单（只提交这些）:** `CLAUDE.md`、`rules/` 下所有分片规则、`docs/`、`hooks/`（跨机器通用的钩子脚本及其测试，注册方式见 `docs/hooks-setup.md`）、`.gitignore` 本身。其余全部由 `.gitignore` 排除：
 - `settings.json` — 含 `additionalDirectories` 等机器本地路径与插件开关，各机器不同
 - `memory/`、`projects/` — 机器本地事实与对话记录
 - `history.jsonl`、`sessions/`、`backups/`、`plugins/`、各类 cache — 本地状态与敏感 token，禁止提交
