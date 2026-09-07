@@ -341,24 +341,28 @@
 
 **核心规则:** 用 Monitor 盯长时间任务时，**一收到结束标记就主动调 `TaskStop` 杀掉 monitor**，不要让它超时自然退出——超时会给用户推一条 "Monitor timed out" 噪音通知。`timeout_ms` 只是兜底，不是退出机制。
 
-## 代码审查工具规范（覆盖所有 skill 的默认做法）
+## 代码审查工具规范（按当前执行工具区分）
 
-**核心规则:** 一切代码质量审查一律派 **`pr-review-toolkit:code-reviewer`** 子代理，不使用任何 skill 自带的审查模板或审查 prompt。
+**核心规则:** 代码质量审查按当前执行工具选择，不跨工具套用：
 
-**这条规则的优先级高于任何 skill 文档。** skill 里写的审查做法（superpowers 的 `task-reviewer-prompt.md`、`requesting-code-review/code-reviewer.md`、`re-review-prompt.md`，以及其他 skill 的同类模板）在代码质量这一环一律不采用——它们是通用 prompt，而 `pr-review-toolkit:code-reviewer` 是专精代码审查的插件，带置信度过滤和 silent-failure-hunter / type-design-analyzer / comment-analyzer / pr-test-analyzer 等专项猎手，实测能力明显更强。
+- **Claude Code（CC）**：使用 **`pr-review-toolkit:code-reviewer`** 子代理。
+- **Codex**：使用自带的 **`codex review`**。不要求安装、查找或模拟 `pr-review-toolkit`，也不使用该插件的代理定义替代 Codex 原生审查。
 
-**spec 审查与代码质量审查必须是两次独立的子代理调用:**
+此选择覆盖 skill 中默认的代码质量审查模板或 prompt；不能因为共享本文件，就把 Claude Code 专用工具要求套到 Codex 上。
 
-| 环节 | 用哪个子代理 |
-|---|---|
-| 实现 | `general-purpose` |
-| spec 符合性审查（是否照要求做了、有没有多做少做） | `general-purpose` |
-| **代码质量审查** | **`pr-review-toolkit:code-reviewer`** |
+**spec 审查与代码质量审查必须独立执行，不合并为一次审查：**
 
-- **绝对禁止把两轮合并成一次调用**，即使 skill 模板要求「一个 reviewer 返回两个 verdict」也不行——遇到这种模板，拆成两次调用执行；
-- 修复轮之后的复审同样适用：涉及代码质量的复审走 `pr-review-toolkit:code-reviewer`，只核对「finding 有没有被处理」的轻量复核可以用 `general-purpose`。
+| 环节 | Claude Code | Codex |
+|---|---|---|
+| 实现 | `general-purpose` 子代理（流程要求派遣时） | 当前实现流程 |
+| spec 符合性审查（是否照要求做了、有没有多做少做） | `general-purpose` 子代理 | 独立 spec 审查子代理 |
+| **代码质量审查** | **`pr-review-toolkit:code-reviewer`** 子代理 | **`codex review`** |
 
-**违规自检:** 派审查子代理前问一句——我这次调的是 `pr-review-toolkit:code-reviewer` 吗？如果因为在跑某个 skill 而用了它自带的模板，立刻停下来改过来。
+- Claude Code 中，两轮审查是两次独立子代理调用；Codex 中，是独立 spec 审查与单独的 `codex review` 调用，不要求代码质量审查再派插件子代理。
+- 修复后的代码质量复审也使用当前工具对应的审查方式。只核对 finding 是否处理的轻量检查不替代必要的代码质量复审。
+- Codex 根据审查范围使用 `codex review --uncommitted`、`codex review --base <分支>` 或 `codex review --commit <SHA>`，以本机命令帮助支持的参数为准。
+
+**违规自检:** 先确认当前是 Claude Code 还是 Codex，再使用对应的代码质量审查工具；不得用另一工具的专用插件或 skill 默认模板替代。
 
 ## Superpowers 流程规范
 
@@ -386,7 +390,7 @@
 
 **具体要求:**
 - **test-driven-development**: 所有有业务逻辑的代码必须 TDD。先写测试 → 运行确认失败 → 写最小实现 → 运行确认通过。子代理必须在 prompt 中接收完整的 TDD skill 流程并严格执行。没有失败的测试就没有生产代码。
-- **subagent-driven-development**: 每个 Task 必须单独派遣一个子代理，完成后执行 spec 审查和代码质量审查——**两轮审查必须是独立的两次子代理调用**，绝对不允许合并为一次，但**应当在同一条消息里并行派遣**（两者都是只读审查、对象是同一段不可变 commit 区间，互不依赖；串行只浪费墙钟时间）。两份审查结果由控制者合并成一个修复轮处理。spec 审查用 general-purpose 子代理，代码质量审查用 **pr-review-toolkit:code-reviewer** 子代理。两轮审查都通过后才能进入下一个 Task。不允许合并多个 Task 给同一个子代理。即使觉得"Task 简单"、"逻辑不复杂"也不能合并审查，没有任何例外。
+- **subagent-driven-development**: 每个 Task 必须单独派遣一个实现子代理，完成后分别执行 spec 审查和代码质量审查，绝对不允许合并为一次。具体工具按上文「代码审查工具规范」：Claude Code 使用独立的 general-purpose 与 pr-review-toolkit:code-reviewer 子代理；Codex 使用独立 spec 审查子代理与自带的 `codex review`。两轮只读审查针对同一段不可变改动，互不依赖时并行执行；结果由控制者合并成一个修复轮处理。两轮都通过后才能进入下一个 Task。不允许合并多个 Task 给同一个实现子代理，也不因 Task 简单而合并审查。
 - **子代理类型规定**: 实现子代理与 spec 审查用 general-purpose；代码质量审查见上文「代码审查工具规范」，即使在 superpowers subagent-driven 流程里也照那条走。
 - **brainstorming**: 必须完整走完 checklist 的每一步，包括 spec 审查循环和用户审查。
 - **writing-plans**: 每个 chunk 写完后必须派遣审查子代理，修复所有 issues 后才能继续。
