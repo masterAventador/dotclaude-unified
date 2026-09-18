@@ -67,16 +67,16 @@ lib/src/
 - 业务层**不用封装**自己的响应基类，直接用 `BaseResp<T>`，`T` 是业务层声明好的应答数据模型
 - 业务层拿到 `BaseResp` 后先判断 `success`，true 就直接取 `resp.data`（泛型里已指定好类型）
 - 请求参数一律走 `parameters` 方法返回，禁止用 `toJson`
-- `HttpClient` 是 `abstract class` + 全 static 方法（按 CLAUDE.md「static 优先原则」），调用直接 `HttpClient.send(...)`，禁止单例写法
+- HTTP 调用复用统一 `HttpClient` 封装；纯转发入口可按项目惯例提供静态门面，持有配置、拦截器或会话状态的客户端按实例生命周期管理（见 CLAUDE.md「static 与实例设计」）。
 
 **WebSocket 使用约束**：
 - `WebSocketClient` 暴露原始字符串流 [messages]（`Stream<String>`），**不解析任何业务协议**
 - 业务层在 `WebSocketClient` 之上加**协议适配器**（如 `ChatWsService`），适配器负责：
-  - 订阅 `WebSocketClient.messages`
+  - 订阅客户端的 `messages` 流
   - jsonDecode + 业务事件 parse（如 `ChatWsEvent.parse`）
   - 暴露业务级 typed Stream（如 `Stream<ChatWsEvent>`）
-  - 业务方法（如 `send` / `ack`）调 `WebSocketClient.send` 时自己 jsonEncode
-- `WebSocketClient` 是 `abstract class` + 全 static（连接状态做成 static 字段），调用直接 `WebSocketClient.connect(uri)`
+  - 业务方法（如 `send` / `ack`）调用客户端 `send` 时自己 jsonEncode
+- `WebSocketClient` 的连接、心跳、重连和订阅状态按实例管理并明确关闭时机；不强制提升为 static 全局状态，客户端的获取方式遵循项目现有依赖管理。
 - ping 帧格式硬编码在 `WebSocketClient` 内部（项目协议约定 `{"type":"ping"}`）；server 必须按这个 type 处理
 
 ---

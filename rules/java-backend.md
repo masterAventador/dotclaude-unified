@@ -365,7 +365,7 @@ public class WelcomeMailListener {
 | Service / ApiImpl / Listener 业务逻辑 | 纯 **Mockito 单测** | `*Test` | ⚡⚡⚡ |
 | Controller | `@WebMvcTest`（mock Service） | `*IT` | ⚡⚡ |
 | Repository 自定义查询 | `@DataJpaTest`（H2） | `*IT` | ⚡⚡ |
-| 端到端关键路径 | `@SpringBootTest`（完整上下文 + H2） | `*IT` | ⚡ |
+| 应用集成测试 | `@SpringBootTest`（完整上下文，开发阶段可用 H2） | `*IT` | ⚡ |
 
 ### 7.2 Maven 插件分工
 
@@ -378,10 +378,10 @@ public class WelcomeMailListener {
 
 **Mockito**（Spring Boot Test Starter 自带），不引入其他 mock 库。
 
-### 7.4 端到端测试数据库
+### 7.4 测试数据库与交付验收
 
-- **默认 H2 内存库**
-- 关键路径（H2 不支持的语法/索引）补 **Testcontainers + 真实 MySQL**
+- 开发阶段的快速数据层与应用集成测试可用 H2；数据库语法、索引及事务行为使用生产同类数据库验证，可通过 Testcontainers 提供。
+- 最终用户链路 / API 验收按全局真实验收要求使用真实依赖；H2 或 mock 测试通过不能替代目标环境验收。
 
 ### 7.5 Object Mother 强制
 
@@ -525,60 +525,12 @@ class UserRegisterServiceTest {
 
 ---
 
-## 10. static 优先原则的 Java 具体写法（强制）
+## 10. Java 的 static 与实例设计
 
-判定规则见全局 CLAUDE.md「static 优先原则」。本节只讲 Java / Spring 的落地写法与边界。
+遵循全局 CLAUDE.md「static 与实例设计」。
 
-### 10.1 Spring Bean 不在本规则约束范围内
-
-Spring 管理的 Bean（`@Service` / `@Repository` / `@Controller` / `@Component` / `@Configuration`）是**有状态的实例**——它们持有注入的依赖（构造器注入 / `@Autowired`）作为**实例字段**。即使某个 Service 方法看起来"不用 this"，它实际上通过注入字段访问其他 Bean，本质上有实例状态。
-
-✅ Spring Bean 用实例方法 + 依赖注入是 Java 后端核心模式：
-
-```java
-@Service
-@RequiredArgsConstructor
-public class UserRegisterService {                      // ✅ Spring 管理的实例
-    private final UserRepository repo;                  // 注入的依赖（实例字段）
-    private final TokenGeneratorService tokenGenerator; // 同上
-
-    public RegisterResult register(...) {               // ✅ 实例方法（用了 this.repo）
-        ...
-    }
-}
-```
-
-❌ **不要**把 Spring Bean 的方法改成 static + 字段做成 static 全局——会破坏依赖注入、测试隔离和配置灵活性。
-
-### 10.2 utility 类 / 常量类（非 Spring 管理）仍受约束
-
-不被注入的纯工具类必须 `final class` + private constructor + 全 static。private constructor **是必须的**（否则能被反射或子类化），`final` 防继承：
-
-```java
-// ✅ Java utility 类
-public final class PhoneUtil {
-    private PhoneUtil() {}    // 必须
-
-    public static final String CN_MOBILE_REGEXP = "^1\\d{10}$";
-
-    public static boolean isValid(String phone) { ... }
-}
-```
-
-```java
-// ❌ 反例：把无状态 utility 包成 Spring Bean 没有意义
-@Component
-public class PhoneValidator {
-    public boolean isValid(String phone) {
-        return phone.matches("^1\\d{10}$");   // 没用任何注入
-    }
-}
-// ↑ 应改成 final class + private constructor + static 方法
-```
-
-### 10.3 Java 自检清单
-
-1. 这个类是 Spring 管理的 Bean 吗？是 → 跳过 static 检查，实例方法合理
-2. 不是 Bean：每个非 static 方法都访问了 `this.xxx` 吗？否 → 改 static
-3. 不是 Bean：每个非 static 字段都"每个实例不一样"吗？否 → 改 static
-4. 改完没有任何实例成员了 → `public final class` + `private Xxx() {}`
+- 纯计算且不承担实例职责的方法可使用 `static`；纯工具类采用 `final class` 与私有构造，避免普通实例化和继承。
+- Spring 管理的 Bean 使用实例方法与依赖注入；不因某个方法未显式访问 `this` 就改成 static，以免破坏代理、事务、接口契约或可替换性。
+- 接口实现、多态和策略对象即使没有可变字段，也可以合理使用实例；只有确实属于纯工具职责时才抽成静态工具。
+- 常量可用 `static final`；可变字段是否共享取决于生命周期和隔离要求，不因当前值相同而静态化。
+- 私有构造约束普通调用，不将其描述为阻止所有反射实例化的安全边界。
