@@ -4,6 +4,7 @@
 
 ## 代码审查工具
 
+- 代码审查工具按当前运行环境二选一，不叠加：在 Claude Code 里跑就用 `pr-review-toolkit`（质量审查 `pr-review-toolkit:code-reviewer`，需要时再加 `pr-test-analyzer`、`silent-failure-hunter` 等），不调用 `codex review`；在 Codex 里跑才用自带的 `codex review`。项目文档里"按项目惯例跑 codex review"之类的记录指的是当时在 Codex 环境里的做法，不是要 Claude Code 也跑一遍。
 - Claude Code：需要独立代码质量审查时使用 `pr-review-toolkit:code-reviewer`；实现和独立 spec 审查按当前流程使用相应子代理。
 - Codex：独立代码质量审查使用自带的 `codex review`，不安装或模拟 Claude 专用审查插件。按本机帮助选择 `--uncommitted`、`--base <分支>` 或 `--commit <SHA>`。
 - 若 skill 当前流程采用合并的任务审查，按该流程提供 spec 与质量结论，不额外复制同一轮审查；需要独立质量审查或最终质量审查时，使用上述工具。
