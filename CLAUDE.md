@@ -6,6 +6,7 @@
 
 - 跨项目通用偏好写本文件；技术栈约定写 `~/.claude/rules/` 对应分片；项目特定规则写项目的 `CLAUDE.md` / `AGENTS.md` 或规则目录。
 - 机器专属路径、服务器地址、安装位置等写本机 memory，不写进共享规则；先现场核实，无法查明时再询问用户。
+- 本机 memory 不跨机器同步。项目进度、用户决定、下一步和待确认事项写进项目仓库文档并推送，memory 只作本机索引，不能作为唯一记录。
 - 新建或修改项目时，先识别技术栈并加载相关分片。支持 `paths` 自动加载的工具可使用该机制；其他工具应主动读取，新建空项目也必须提前读取。
 - Flutter 加载 `flutter.md` 及适用的 `flutter-*-layer.md`；Java 后端加载 `java-backend.md` 及适用的 `java-backend-*-layer.md`；新建项目时加载该技术栈全部分片。
 - 工具专用操作说明见 `~/.claude/docs/agent-tool-workflows.md`，只在使用相关工具时读取；事故背景见 `~/.claude/docs/verification-lessons.md`，排查同类问题时读取，不必每轮加载。
