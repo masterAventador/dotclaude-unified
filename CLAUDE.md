@@ -85,7 +85,9 @@
 - 派遣时确认当前工具的上下文继承方式，补充子代理缺失的主对话决策、限制、spec / plan 路径、任务范围、测试命令和完成标准；不假定所有工具都自动加载规则，也不重复粘贴已经继承的大段内容。
 - 任务级提示要明确待验证行为与适用测试范围；TDD 流程引用本文件或当前 skill，需要时提供路径或缺失内容。返回后检查实际产物和验证证据。
 - 模型选择遵循当前工具约束及 skill 要求，不写死型号，不为省 token 降低复杂实现或重要审查的质量。
-- Spec 与代码质量都要检查；是否分开派遣、每任务或阶段审查，遵循当前 skill，不在全局复制旧版固定轮次。工具选择与 Monitor 收尾按需读取 `docs/agent-tool-workflows.md`。
+- Spec 与代码质量都要检查；是否分开派遣、每任务或阶段审查，遵循当前 skill，不在全局复制旧版固定轮次。
+- 代码质量审查工具按运行环境二选一，不叠加：Claude Code 里用 `pr-review-toolkit:code-reviewer`（需要时再加 `pr-test-analyzer`、`silent-failure-hunter` 等），不调用 `codex review`；Codex 里只用自带的 `codex review`。Spec 审查按当前 skill 用相应子代理。
+- 其他工具选择与 Monitor 收尾按需读取 `docs/agent-tool-workflows.md`。
 - 采用可视化设计时，只保留最终确认方案，保存至项目 `.superpowers/brainstorm/`，使用语义化文件名；结束后清理选择过程的临时备选文件。
 
 ## 静默运行与资源管理
